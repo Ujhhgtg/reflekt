@@ -52,9 +52,10 @@ class Reflect<T>(private val clazz: Class<T>) {
 
     fun lastMethod(): ReflectedMethod<T> = lastMethod { }
 
-    fun invokeMethod(name: String, instance: T?, vararg args: Any?): Any? {
+    fun invokeMethod(name: String, instance: T?, vararg args: Any?, superclass: Boolean = false): Any? {
         return firstMethod {
             this.name = name
+            superclass(superclass)
         }.invokeStatic(*args)
     }
 
@@ -302,9 +303,10 @@ class InstanceReflect<T : Any>(private val instance: T) {
 
     fun lastMethod(): InstanceReflectedMethod<T> = lastMethod { }
 
-    fun invokeMethod(name: String, vararg args: Any?): Any? {
+    fun invokeMethod(name: String, vararg args: Any?, superclass: Boolean = false): Any? {
         return firstMethod {
             this.name = name
+            superclass(superclass)
         }.invoke(*args)
     }
 
@@ -339,9 +341,10 @@ class InstanceReflect<T : Any>(private val instance: T) {
 
     fun lastField(): InstanceReflectedField<T> = lastField { }
 
-    fun getField(name: String): Any? {
+    fun getField(name: String, superclass: Boolean = false): Any? {
         return firstField {
             this.name = name
+            superclass(superclass)
         }.get()
     }
 
