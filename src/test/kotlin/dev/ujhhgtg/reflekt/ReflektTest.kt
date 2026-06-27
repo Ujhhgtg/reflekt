@@ -495,4 +495,33 @@ class ReflektTest {
         val methods = "hello".reflekt().methods()
         assertTrue(methods.isNotEmpty())
     }
+
+    @Test
+    fun modifiersSubsetMatch() {
+        // Math.sin has modifiers: PUBLIC, STATIC, NATIVE
+        // We filter for only STATIC, or only PUBLIC and STATIC, which should match.
+        val methodsStatic = Math::class.reflekt().methods {
+            modifiers(Modifiers.STATIC)
+        }
+        assertTrue(methodsStatic.any { it.name == "sin" })
+
+        val methodsPublicStatic = Math::class.reflekt().methods {
+            modifiers(Modifiers.PUBLIC, Modifiers.STATIC)
+        }
+        assertTrue(methodsPublicStatic.any { it.name == "sin" })
+
+        // But filtering for STATIC and FINAL should not match Math.sin
+        val methodsStaticFinal = Math::class.reflekt().methods {
+            modifiers(Modifiers.STATIC, Modifiers.FINAL)
+        }
+        assertTrue(methodsStaticFinal.none { it.name == "sin" })
+    }
+
+    @Test
+    fun modifiersVarargCacheHit() {
+        ReflectionCache.clear()
+        val m1 = Math::class.reflekt().methods { modifiers(Modifiers.PUBLIC, Modifiers.STATIC) }
+        val m2 = Math::class.reflekt().methods { modifiers(Modifiers.PUBLIC, Modifiers.STATIC) }
+        assertSame(m1, m2)
+    }
 }

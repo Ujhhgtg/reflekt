@@ -94,6 +94,19 @@ class Reflect<T>(private val clazz: Class<T>) {
 
     fun lastField(): ReflectedField<T> = lastField { }
 
+    fun getField(name: String, superclass: Boolean = false): Any? {
+        return firstField {
+            this.name = name
+            superclass(superclass)
+        }.getStatic()
+    }
+
+    fun setField(name: String, value: Any?) {
+        firstField {
+            this.name = name
+        }.setStatic(value)
+    }
+
     // ==================== Constructors ====================
 
     fun firstConstructor(config: ConstructorSpec.() -> Unit): ReflectedConstructor<T> {
@@ -348,8 +361,8 @@ class InstanceReflect<T : Any>(private val instance: T) {
         }.get()
     }
 
-    fun setField(name: String, value: Any?): Any? {
-        return firstField {
+    fun setField(name: String, value: Any?) {
+        firstField {
             this.name = name
         }.set(value)
     }

@@ -71,7 +71,8 @@ class ConstructorSpec : Spec() {
         if (parametersPredicate != null && !parametersPredicate!!(constructor.parameterTypes.toList())) return false
         if (parameterCount != null && constructor.parameterCount != parameterCount) return false
         if (parameterCountPredicate != null && !parameterCountPredicate!!(constructor.parameterCount)) return false
-        if (modifiers != null && constructor.modifiers != modifiers) return false
+        val m = modifiers
+        if (m != null && (constructor.modifiers and m) != m) return false
         if (modifiersMaskPredicate != null && !modifiersMaskPredicate!!(constructor.modifiers.toModifierSet())) return false
         return true
     }

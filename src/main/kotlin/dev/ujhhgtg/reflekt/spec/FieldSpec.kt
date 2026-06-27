@@ -61,7 +61,8 @@ class FieldSpec : Spec() {
         val rt = type.typeInputToClass()
         if (rt != null && !rt.typeMatches(field.type)) return false
         if (typePredicate != null && !typePredicate!!(field.type)) return false
-        if (modifiers != null && field.modifiers != modifiers) return false
+        val m = modifiers
+        if (m != null && (field.modifiers and m) != m) return false
         if (modifiersMaskPredicate != null && !modifiersMaskPredicate!!(field.modifiers.toModifierSet())) return false
         return true
     }

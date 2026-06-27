@@ -132,12 +132,11 @@ class MethodSpec : Spec() {
             !safe { returnTypePredicate!!(method.returnType) }
         ) return false
 
-        if (modifiers != null && method.modifiers != modifiers) return false
-
+        val m = modifiers
+        if (m != null && method.modifiers and m != m) return false
         if (modifiersMaskPredicate != null &&
             !safe { modifiersMaskPredicate!!(method.modifiers.toModifierSet()) }
         ) return false
-
         return true
     }
 
