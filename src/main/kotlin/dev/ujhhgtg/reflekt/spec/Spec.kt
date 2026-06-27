@@ -15,7 +15,7 @@ abstract class Spec {
 }
 
 @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN", "RemoveRedundantQualifierName")
-internal fun Class<*>.typeMatches(other: Class<*>): Boolean {
+fun Class<*>.typeMatches(other: Class<*>): Boolean {
     if (this == other) return true
     return when (this) {
         Boolean::class.java -> other == java.lang.Boolean::class.java
