@@ -32,6 +32,8 @@ class Reflect<T>(private val clazz: Class<T>) {
 
     fun firstMethod(): ReflectedMethod<T> = firstMethod { }
 
+    fun firstMethod(name: String): ReflectedMethod<T> = firstMethod { this.name = name }
+
     fun methods(config: MethodSpec.() -> Unit): List<ReflectedMethod<T>> {
         val spec = MethodSpec().apply(config)
         return resolveMethods(spec)
