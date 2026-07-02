@@ -17,6 +17,9 @@ import java.lang.reflect.Method
 
 class Reflect<T>(private val clazz: Class<T>) {
 
+    @Deprecated("You shouldn't call .reflekt() on a Reflect", level = DeprecationLevel.ERROR)
+    fun reflekt(): Nothing = error("You shouldn't call .reflekt() on a Reflect")
+
     // ==================== Methods ====================
 
     fun firstMethod(config: MethodSpec.() -> Unit): ReflectedMethod<T> {
@@ -283,6 +286,9 @@ class Reflect<T>(private val clazz: Class<T>) {
 }
 
 class InstanceReflect<T : Any>(private val instance: T) {
+
+    @Deprecated("You shouldn't call .reflekt() on an InstanceReflect", level = DeprecationLevel.ERROR)
+    fun reflekt(): Nothing = error("You shouldn't call .reflekt() on an InstanceReflect")
 
     @Suppress("UNCHECKED_CAST")
     private val reflect = Reflect(instance::class.java as Class<T>)
