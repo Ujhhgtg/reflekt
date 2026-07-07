@@ -106,9 +106,10 @@ class Reflect<T>(private val clazz: Class<T>) {
         }.getStatic()
     }
 
-    fun setField(name: String, value: Any?) {
+    fun setField(name: String, value: Any?, superclass: Boolean = false) {
         firstField {
             this.name = name
+            superclass(superclass)
         }.setStatic(value)
     }
 
@@ -369,9 +370,10 @@ class InstanceReflect<T : Any>(private val instance: T) {
         }.get()
     }
 
-    fun setField(name: String, value: Any?) {
+    fun setField(name: String, value: Any?, superclass: Boolean = true) {
         firstField {
             this.name = name
+            superclass(superclass)
         }.set(value)
     }
 
