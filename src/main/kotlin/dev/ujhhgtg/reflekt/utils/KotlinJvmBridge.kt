@@ -16,6 +16,7 @@ import kotlin.reflect.KFunction
 // and realize that this is still a boring O(N) scan and is pretty equivalent to kotin-stdlib's findJavaDeclaration,
 // the only micro-optimization is jdk's own caching which saves tiny allocation
 // so generally i should delete it and just use stdlib's equivalence, but i'm gonna keep this for fun lol
+// also i think it's very obvious why i don't use javaMethod - it requires the bloated kotlin-reflekt and proguard/r8 is often unhappy with it
 val KFunction<*>.fastJavaMethod: Method?
     get() {
         val ref = this as? CallableReference ?: return null
