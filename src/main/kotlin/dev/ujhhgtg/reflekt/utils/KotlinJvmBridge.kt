@@ -6,7 +6,16 @@ import kotlin.jvm.internal.CallableReference
 import kotlin.jvm.internal.ClassBasedDeclarationContainer
 import kotlin.reflect.KFunction
 
-// provides a O1-ish way primarily for lookup of stub methods
+// provides a O(1)-ish way primarily for looking up external stub java methods
+// we don't use findJavaDeclaration here since it iterates through all declaredMethods and calculates their signatures,
+// where our 'parse descriptor and getDeclaredMethod' way should be slightly faster
+// (anyways this is more like playing around with kotlin internals instead of an actual useful utility..?)
+//
+// update:
+// so yeah... if you read the jvm source, you will surprisingly learn that getDeclaredMethod is STILL an O(N) iteration,
+// and realize that this is still a boring O(N) scan and is pretty equivalent to kotin-stdlib's findJavaDeclaration,
+// the only micro-optimization is jdk's own caching which saves tiny allocation
+// so generally i should delete it and just use stdlib's equivalence, but i'm gonna keep this for fun lol
 val KFunction<*>.fastJavaMethod: Method?
     get() {
         val ref = this as? CallableReference ?: return null
@@ -34,6 +43,7 @@ val KFunction<*>.fastJavaMethod: Method?
         val returnType = methodType.returnType()
 
         val method = try {
+            // fast path
             ownerClass.getDeclaredMethod(
                 jvmName,
                 *parameterTypes,
