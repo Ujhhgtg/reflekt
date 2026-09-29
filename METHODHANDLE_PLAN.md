@@ -27,6 +27,26 @@
 - A wrapper with `compiled = false` never builds a handle; with `true` it builds one lazily on first use. The reflective path stays exactly as today (`makeAccessible()` once, `Method.invoke`).
 - **Exception consistency (decided):** raw propagation on both paths. The reflective path unwraps `InvocationTargetException` and rethrow the cause, so both paths throw the same exception. This still breaks the WeKit catch sites in Phase 5 by default, not only for `compiled()`.
 
+## Unified call convention (no `xxxStatic`)
+Every call behaves like invoking the member directly / like a `MethodHandle` of that member: **an instance member takes its receiver as the first argument; a static member takes none.** Static-ness is read from `Modifier.isStatic(self.modifiers)` once, when the access object is built.
+
+| Wrapper | instance member | static member |
+|---|---|---|
+| `ReflectedMethod.invoke(...)` | `invoke(instance, a, b)` | `invoke(a, b)` |
+| `InstanceReflectedMethod.invoke(...)` | `invoke(a, b)` (bound receiver) | `invoke(a, b)` (bound receiver ignored) |
+| `ReflectedField.get / set` | `get(instance)`, `set(instance, v)` | `get()`, `set(v)` |
+| `InstanceReflectedField.get / set` | `get()`, `set(v)` | `get()`, `set(v)` |
+| `ReflectedConstructor.newInstance(...)` | `newInstance(a, b)` | n/a |
+| `Reflect.invokeMethod(name, ...)` | `invokeMethod(name, instance, a)` | `invokeMethod(name, a)` |
+| `InstanceReflect.invokeMethod(name, ...)` | `invokeMethod(name, a)` | `invokeMethod(name, a)` |
+
+- Removed: `invokeStatic`, `getStatic`, `setStatic`. This also **supersedes the Phase 0 fix's signature**: `Reflect.invokeMethod(name, instance, vararg args, superclass)` becomes `invokeMethod(name, vararg args, superclass)`, with the receiver (if the resolved method is non-static) as the first vararg. The Phase 0 change (`invoke(instance, ...)` instead of `invokeStatic`) is an intermediate state.
+- `ReflectedMethod.invoke` becomes `invoke(vararg args: Any?)` plus fixed-arity overloads `invoke()`, `invoke(a)`, ..., `invoke(a, b, c)`. The argument count is *total*, i.e. `parameterCount + (if static 0 else 1)`; fixed-arity overloads therefore map 1:1 to handle types with no dropArguments/bindTo adapters. `T` on `ReflectedMethod<T>` no longer types the receiver (it can't be expressed for a static method); receiver is checked at call time.
+- Arity is validated up front on both backends with a clear `IllegalArgumentException` (e.g. `static method Foo.bar(String) takes 1 argument, got 2; do not pass a receiver`). This turns the most likely migration mistake, `invoke(null, x)` on a static method, into an immediate, self-explanatory failure instead of a confusing reflection error.
+- Handle backend: no `dropArguments` receiver shim any more. The handle is `unreflect(...)`'s natural type (receiver first for instance members), adapted with `asType(genericMethodType(total))`; spread variant `asSpreader(Object[], total)`. `InstanceReflected*` reuse the same shared handle and prepend the bound instance (for static members, don't). Field getter `(recv?) -> Object`, setter `(recv?, value) -> Object` (see finding 1).
+- Reflection backend: static -> `self.invoke(null, *args)`; instance -> `self.invoke(args[0], *args.copyOfRange(1, n))`.
+- `InstanceReflectedField` currently also exposes `get(instance)` / `set(instance, value)` overloads. **Decided (say if you disagree):** remove them; `erase()` / `of(instance)` already cover that, and they contradict "bound means no receiver argument".
+
 ## Phases
 
 ### Phase 0 — done
@@ -48,12 +68,13 @@
 
 ### Phase 3 — API
 - Add `invoke()`, `invoke(a)`, `invoke(a,b)`, `invoke(a,b,c)` overloads on `ReflectedMethod`, `InstanceReflectedMethod`, `newInstance` on constructors; keep `vararg` versions.
-- Fix `invokeStatic` and `getStatic`/`setStatic` on the new backend.
+- Delete `invokeStatic` / `getStatic` / `setStatic`; implement the unified convention above on both backends.
 
 ### Phase 4 — tests (JDK 21) and benchmark
 - New tests: static/instance, private, final field get/set, void return, primitive return/param, boxed widening, varargs-as-array, superclass member, exception propagation is raw, wrong-type errors as in finding 5, cache sharing (same access object across `InstanceReflect` calls), lazy (no handle built when only `.self` is used).
 - Benchmark source (plain Kotlin main or Android app snippet the user runs on a device): `Method.invoke` vs handle for 0/1/2/3/N args, field get/set, constructor, cold first call, non-cacheable spec, widening case, and a hooked method. Report ns/op.
 - No gate: reflection remains the default. Use the numbers to write guidance (which arities/members benefit from `compiled()`), and to decide whether the fixed-arity overloads are worth keeping.
+- Tests for the unified convention: instance vs static x `ReflectedX` vs `InstanceReflectedX` for methods and fields (see table); wrong receiver/arity -> the explicit `IllegalArgumentException`; `Reflect.invokeMethod` static and instance; both backends behave identically.
 - Tests for the opt-in API: default off; `compiled()`/`compiled(false)`/global default; spec-level flag overrides global; cache keys differ; `compiled` wrapper builds no handle until first invoke; global `superclass` default honoured and part of cache key.
 
 ### Phase 5 — WeKit-Dev migration
@@ -69,6 +90,10 @@ Already explicit, no change: `WeMessageApi.kt:950-953`, `JavaEngine.kt:1681/1683
 `getField`/`invokeMethod`/`firstX {}` sites are unchanged (global default stays `false`). Do **not** set `Reflekt.defaults.superclass = true` in WeKit to paper over this: it would widen every lookup and can change which member `firstMethod`/`firstField` returns.
 Safety net: after the edits, grep again for `setField(` without `superclass` and re-verify against the reflekt tests; a missed site fails at runtime with `NoSuchElementException` (field not found in the concrete class), not silently.
 
+**A2. `xxxStatic` and static-receiver call sites (compile errors and runtime arity errors)**
+- Compile errors, fix mechanically by dropping `Static`: `invokeStatic(...)` -> `invoke(...)`, `getStatic()` -> `get()`, `setStatic(v)` -> `set(v)`. 16 occurrences in 11 files: `WeAuthApi`, `WeDatabaseApi`, `WeMessageApi` (5), `WeServiceApi` (2), `WeTextStatusApi`, `WeNetSceneApi`, `WeAlertDialogApi`, `WeMomentsApi`, `JavaEngine`, `DisableLowAvailableStorageDetection`, `KillHostUtils`. (Verify each is on a reflekt type; some may be unrelated.)
+- **Not compile errors, runtime arity errors** (static member called with a leading `null` receiver): `WePacketHelper.kt:500` `.invoke(null, rr, cbProxy, false)` and `WeConversationApi.kt:701` `.invoke(null, convId)` are reflekt `firstMethod {}` results on static methods; change to `invoke(rr, cbProxy, false)` / `invoke(convId)`. `Reflect.invokeMethod(name, null, superclass = true)` in `WePacketHelper` (`getNetQueue`, static) becomes `invokeMethod(name, superclass = true)`. Sweep for the rest: every `.invoke(null, ...)`, `.get(null)`, `.set(null, ...)` whose receiver is a reflekt `ReflectedMethod`/`ReflectedField` (many other `.invoke(null, ...)` in WeKit are raw `java.lang.reflect.Method` from DexKit `.method` and must NOT change). A wrong one fails immediately with the explicit arity message.
+
 **B. Exception unwrapping (reflekt now throws the target's exception, not `InvocationTargetException`)** — reflekt-backed catch sites:
 - `features/api/net/listener/WePacketDispatcher.kt:69-84`: `catch (e: InvocationTargetException)` with `e.cause is NullPointerException`. Change to `catch (e: NullPointerException)`, log `e` instead of `e.cause`, drop the rethrow branch and the now-unused import.
 - `features/items/chat/AutoSpeechToText.kt:89`: `catch (_: InvocationTargetException)` around `transformMethod.invoke(...)` (a reflekt `InstanceReflectedMethod`). It currently swallows any target exception, so use `catch (_: Exception)` to keep that behaviour (the comment names a NullPointerException, so `NullPointerException` alone is a tighter alternative; pick one when implementing).
@@ -83,7 +108,7 @@ Also grep for `catch (e: Exception)` blocks that read `e.cause` after a reflekt 
 1. Land reflekt Phases 1-4 on reflekt `master`.
 2. WeKit-Dev branch: bump submodule, apply A and B in the same commit, build, run the app's unit tests (`app/src/test`) and a device smoke test of packet interception, Anti Moments Delete, speech-to-text, and quote-relation insert (the flows that touch the changed sites).
 3. Only then apply C, one feature at a time, with before/after numbers.
-Rule: never bump the submodule without A and B in the same change.
+Rule: never bump the submodule without A, A2 and B in the same change.
 
 ## Out of scope
 `VarHandle` field backend, atomic/memory-order field API (revisit only if wanted), any change to spec/discovery code.
