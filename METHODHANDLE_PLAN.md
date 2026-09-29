@@ -56,10 +56,34 @@
 - No gate: reflection remains the default. Use the numbers to write guidance (which arities/members benefit from `compiled()`), and to decide whether the fixed-arity overloads are worth keeping.
 - Tests for the opt-in API: default off; `compiled()`/`compiled(false)`/global default; spec-level flag overrides global; cache keys differ; `compiled` wrapper builds no handle until first invoke; global `superclass` default honoured and part of cache key.
 
-### Phase 5 — WeKit-Dev rollout
-- Fix catches of `InvocationTargetException` that wrap reflekt calls: `WePacketDispatcher`, `AutoSpeechToText` (verify each actually goes through reflekt; `HybridClassLoader`, `ActivityProxy`, `ArtHookBridgeRuntime`, `PythonRuntimeLoader`, `WeJvmToolBindings` appear to use raw `Method.invoke` and are unaffected, but `WeJvmToolBindings.guard` is worth a look).
-- Sweep for other `catch (e: Exception)` patterns depending on wrapped causes (`e.cause`, `targetException`).
-- Bump reflekt version, release notes listing the behaviour changes in finding 5 and the exception change.
+### Phase 5 — WeKit-Dev migration
+WeKit-Dev vendors reflekt as the git submodule `libs/common/reflekt` (`https://github.com/Ujhhgtg/reflekt`), consumed via `implementation(project(":libs:common:reflekt"))`. Migration = land the reflekt changes on `master`, then in WeKit-Dev change call sites **and** bump the submodule pointer in one commit, so the app never builds against a mismatched pair.
+
+**Correction to earlier text:** `setField` defaults differ by receiver. `InstanceReflect.setField` (what `obj.reflekt().setField(...)` uses) defaults to `superclass = true`; `Reflect.setField` (class receiver) defaults to `false`. `getField` and `invokeMethod` default to `false` on both. After unification all follow `Reflekt.defaults.superclass` (default `false`), so only instance-receiver `setField` calls change behaviour.
+
+**A. `setField` call sites that relied on the old `true` default (must add `superclass = true`)** — found by scanning WeKit-Dev at `88f47be`:
+- `features/api/net/WePacketHelper.kt:474-481` — 8 calls (`"a"`, `"b"`, `"c"`, `"d"`, `"e"`, `"f"`, `"l"`, `"n"`) on the obfuscated request builder.
+- `features/items/moments/AntiMomentsDelete.kt:204` — `setField("field_content", ...)`.
+- `features/items/moments/AntiMomentsDelete.kt:213` — `setField("field_sourceType", value)`.
+Already explicit, no change: `WeMessageApi.kt:950-953`, `JavaEngine.kt:1681/1683`. Not reflekt: `JvmReflector.setField`, the BeanShell `setField` binding, `WeJvmToolBindings.jvmSetField`.
+`getField`/`invokeMethod`/`firstX {}` sites are unchanged (global default stays `false`). Do **not** set `Reflekt.defaults.superclass = true` in WeKit to paper over this: it would widen every lookup and can change which member `firstMethod`/`firstField` returns.
+Safety net: after the edits, grep again for `setField(` without `superclass` and re-verify against the reflekt tests; a missed site fails at runtime with `NoSuchElementException` (field not found in the concrete class), not silently.
+
+**B. Exception unwrapping (reflekt now throws the target's exception, not `InvocationTargetException`)** — reflekt-backed catch sites:
+- `features/api/net/listener/WePacketDispatcher.kt:69-84`: `catch (e: InvocationTargetException)` with `e.cause is NullPointerException`. Change to `catch (e: NullPointerException)`, log `e` instead of `e.cause`, drop the rethrow branch and the now-unused import.
+- `features/items/chat/AutoSpeechToText.kt:89`: `catch (_: InvocationTargetException)` around `transformMethod.invoke(...)` (a reflekt `InstanceReflectedMethod`). It currently swallows any target exception, so use `catch (_: Exception)` to keep that behaviour (the comment names a NullPointerException, so `NullPointerException` alone is a tighter alternative; pick one when implementing).
+Not reflekt, unaffected (raw `Method.invoke`): `HybridClassLoader`, `ActivityProxy`, `ArtHookBridgeRuntime`, `PythonRuntimeLoader.unwrap`, `WeJvmToolBindings.guard` (uses `JvmReflector`). `StickerPanel.kt:568` and `PythonDexHostImpl`/`PythonTaskHostImpl` use `error.cause ?: error` on arbitrary throwables; leave them, but double check none of them receive a reflekt-thrown exception.
+Also grep for `catch (e: Exception)` blocks that read `e.cause` after a reflekt call (none found beyond the above at `88f47be`).
+
+**C. Adopt the new API where it earns its keep (optional, after A and B are green)**
+- `compiled()` only on hot, cacheable lookups, chosen from the benchmark. Candidates to check: per-message/packet hook bodies such as `WePacketDispatcher` (`getUri`, `getType`, `getReqObj`, `getField("a")`), `WePacketHelper` response handling, `MessageInfo.getFieldByName` (called per message), `ContactBean`/`ConversationBean` field reads (per list row), `WeConversationListViewApi` `getField("itemView")` (per bind). Leave one-shot and startup lookups alone.
+- Replace the repeated `superclass = true` / `getField(name, true)` noise with explicit per-call values as they are (do not switch the WeKit global default).
+
+**D. Rollout order**
+1. Land reflekt Phases 1-4 on reflekt `master`.
+2. WeKit-Dev branch: bump submodule, apply A and B in the same commit, build, run the app's unit tests (`app/src/test`) and a device smoke test of packet interception, Anti Moments Delete, speech-to-text, and quote-relation insert (the flows that touch the changed sites).
+3. Only then apply C, one feature at a time, with before/after numbers.
+Rule: never bump the submodule without A and B in the same change.
 
 ## Out of scope
 `VarHandle` field backend, atomic/memory-order field API (revisit only if wanted), any change to spec/discovery code.
