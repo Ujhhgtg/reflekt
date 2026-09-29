@@ -61,7 +61,7 @@ class Reflect<T>(private val clazz: Class<T>) {
         return firstMethod {
             this.name = name
             superclass(superclass)
-        }.invokeStatic(*args)
+        }.invoke(instance, *args)
     }
 
     // ==================== Fields ====================
