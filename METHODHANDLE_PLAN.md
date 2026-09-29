@@ -22,10 +22,10 @@
 - `Reflekt.defaults` (object, `@Volatile` fields): `compiled: Boolean = false`, `superclass: Boolean = false`.
 - `Spec` gets `var compiled` initialised from `Reflekt.defaults.compiled` when the spec is created, plus `fun compiled()` (= true) and `fun compiled(value: Boolean)`, mirroring `superclass()` / `superclass(value)`. Applies to `MethodSpec`, `FieldSpec`, `ConstructorSpec`.
   `instance.reflekt().firstMethod { name = "x"; compiled() }.invoke()`
-- `Spec.superclass` likewise initialises from `Reflekt.defaults.superclass`. The convenience helpers that take an explicit flag (`invokeMethod`, `getField`, `setField`) change their parameter to `Boolean? = null`, meaning "use the global default". Note `setField` currently defaults to `true` while `getField`/`invokeMethod` default to `false`; unifying them under the global default changes `setField`'s behaviour when the global is `false`. **Confirm this is wanted** (alternative: keep `setField` at `true`).
+- `Spec.superclass` likewise initialises from `Reflekt.defaults.superclass`. The convenience helpers that take an explicit flag (`invokeMethod`, `getField`, `setField`) change their parameter to `Boolean? = null`, meaning "use the global default". `setField` currently defaults to `true` while `getField`/`invokeMethod` default to `false`. **Decided:** all three follow the global default (unified). This changes `setField`'s behaviour when the global is `false`; call it out in the release notes.
 - Cache: `compiled` is added to `staticCacheKeyParts()` so compiled and plain lookups of the same spec get separate wrappers. `superclass` is already in the key, so changing the global default is safe.
 - A wrapper with `compiled = false` never builds a handle; with `true` it builds one lazily on first use. The reflective path stays exactly as today (`makeAccessible()` once, `Method.invoke`).
-- **Exception consistency (assumption to confirm):** you chose raw propagation. To avoid behaviour depending on the flag, the reflective path will also unwrap `InvocationTargetException` and rethrow the cause, so both paths throw the same exception. This still breaks the WeKit catch sites in Phase 5 by default, not only for `compiled()`.
+- **Exception consistency (decided):** raw propagation on both paths. The reflective path unwraps `InvocationTargetException` and rethrow the cause, so both paths throw the same exception. This still breaks the WeKit catch sites in Phase 5 by default, not only for `compiled()`.
 
 ## Phases
 
