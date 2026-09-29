@@ -13,7 +13,6 @@ class MethodSpec : Spec() {
     var parameterCount: Int? = null
     var returnType: Any? = null
     var modifiers: Int? = null
-    var superclass: Boolean = false
 
     private var namePredicate: ((String) -> Boolean)? = null
     private var parametersPredicate: ((List<Class<*>>) -> Boolean)? = null
@@ -82,14 +81,6 @@ class MethodSpec : Spec() {
         hasRuntimeCondition = true
     }
 
-    fun superclass() {
-        superclass = true
-    }
-
-    fun superclass(value: Boolean) {
-        superclass = value
-    }
-
     private fun safe(block: () -> Boolean): Boolean =
         runCatching(block).getOrElse { false }
 
@@ -141,5 +132,5 @@ class MethodSpec : Spec() {
     }
 
     override fun staticCacheKeyParts(): List<Any?> =
-        listOf(name, parameters?.typeInputToCacheKeyParameters(), parameterCount, returnType.typeInputToClass(), modifiers, superclass)
+        listOf(name, parameters?.typeInputToCacheKeyParameters(), parameterCount, returnType.typeInputToClass(), modifiers, superclass, compiled)
 }

@@ -10,7 +10,6 @@ class ConstructorSpec : Spec() {
     var parameters: List<*>? = null
     var parameterCount: Int? = null
     var modifiers: Int? = null
-    var superclass: Boolean = false
 
     private var parametersPredicate: ((List<Class<*>>) -> Boolean)? = null
     private var parameterCountPredicate: ((Int) -> Boolean)? = null
@@ -51,14 +50,6 @@ class ConstructorSpec : Spec() {
         hasRuntimeCondition = true
     }
 
-    fun superclass() {
-        superclass = true
-    }
-
-    fun superclass(value: Boolean) {
-        superclass = value
-    }
-
     fun matches(constructor: Constructor<*>): Boolean {
         if (parameters != null) {
             val specParams = parameters!!
@@ -78,5 +69,5 @@ class ConstructorSpec : Spec() {
     }
 
     override fun staticCacheKeyParts(): List<Any?> =
-        listOf(parameters?.typeInputToCacheKeyParameters(), parameterCount, modifiers, superclass)
+        listOf(parameters?.typeInputToCacheKeyParameters(), parameterCount, modifiers, superclass, compiled)
 }

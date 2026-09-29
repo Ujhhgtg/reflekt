@@ -1,5 +1,21 @@
 # Reflekt: MethodHandle execution backend — plan
 
+## Status
+- Phases 1-4 implemented in reflekt (`reflected/Access.kt` backends, `compiled()`, `Reflekt.defaults`, unified call convention, `ofNone()`, unwrapped exceptions). 91 JVM tests pass (`BackendTest` runs every case on both backends).
+- JVM (JDK 21, HotSpot) numbers from `src/test/.../bench/Benchmark.kt`, one backend per process, ns/op:
+
+  | case | reflection | compiled |
+  |---|---|---|
+  | invoke() 0 args | 16 | 14 |
+  | invoke(a, b) | 12.5 | 13 |
+  | invoke 7 args (spread) | 270 | 145 |
+  | field get / set | 8 / 10 | 10 / 10 |
+  | newInstance() | 124 | 17 |
+  | cold lookup + first call | 2600 | 8800 |
+
+  Takeaway on HotSpot: `compiled()` pays off for constructors and 6+ argument calls; cold use is ~3.4x more expensive, confirming opt-in. **ART numbers still needed** (run `runReflektBenchmark()` on a device, one backend per process).
+- Phase 5 (WeKit-Dev): A, A2, B done in the WeKit-Dev change that bumps the submodule; C (adopting `compiled()`) waits for ART numbers.
+
 ## Decisions (agreed)
 - Discovery/metadata stays on `java.lang.reflect` (`Spec`s, superclass walk, `ReflectionCache`, `.self`). Only execution changes.
 - Exceptions: **propagate raw** (no `InvocationTargetException`). WeKit catch sites must be fixed in the same rollout (see Phase 5).

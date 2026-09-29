@@ -2,6 +2,7 @@
 
 package dev.ujhhgtg.reflekt.spec
 
+import dev.ujhhgtg.reflekt.Reflekt
 import dev.ujhhgtg.reflekt.utils.toClass
 import kotlin.reflect.KClass
 
@@ -10,6 +11,32 @@ abstract class Spec {
         protected set
 
     val isCacheable: Boolean get() = !hasRuntimeCondition
+
+    /** Also search superclasses (up to, excluding, [Object]). Defaults to [Reflekt.defaults]. */
+    var superclass: Boolean = Reflekt.defaults.superclass
+
+    /**
+     * Execute the resolved member through a cached [java.lang.invoke.MethodHandle] instead of
+     * core reflection. Building the handle costs more than a single reflective call, so only
+     * enable this for lookups that are cached and invoked repeatedly. Defaults to [Reflekt.defaults].
+     */
+    var compiled: Boolean = Reflekt.defaults.compiled
+
+    fun superclass() {
+        superclass = true
+    }
+
+    fun superclass(value: Boolean) {
+        superclass = value
+    }
+
+    fun compiled() {
+        compiled = true
+    }
+
+    fun compiled(value: Boolean) {
+        compiled = value
+    }
 
     abstract fun staticCacheKeyParts(): List<Any?>
 }

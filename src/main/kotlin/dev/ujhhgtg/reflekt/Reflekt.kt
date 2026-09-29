@@ -10,6 +10,21 @@ import dev.ujhhgtg.reflekt.spec.FieldSpec
 import dev.ujhhgtg.reflekt.spec.MethodSpec
 import kotlin.reflect.KClass
 
+/** Global options. Each spec reads them when it is created, so later changes don't affect existing lookups. */
+object Reflekt {
+    val defaults: Defaults = Defaults()
+
+    class Defaults internal constructor() {
+        /** Default for [dev.ujhhgtg.reflekt.spec.Spec.compiled]. */
+        @Volatile
+        var compiled: Boolean = false
+
+        /** Default for [dev.ujhhgtg.reflekt.spec.Spec.superclass], also used by the invokeMethod/getField/setField helpers. */
+        @Volatile
+        var superclass: Boolean = false
+    }
+}
+
 inline fun <T : Any> KClass<T>.reflekt(): Reflect<T> = Reflect(java)
 inline fun <T> Class<T>.reflekt(): Reflect<T> = Reflect(this)
 

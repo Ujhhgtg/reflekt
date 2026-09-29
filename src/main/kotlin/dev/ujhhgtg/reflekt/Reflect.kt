@@ -57,11 +57,16 @@ class Reflect<T>(private val clazz: Class<T>) {
 
     fun lastMethod(): ReflectedMethod<T> = lastMethod { }
 
-    fun invokeMethod(name: String, instance: T?, vararg args: Any?, superclass: Boolean = false): Any? {
+    /**
+     * Invokes the first method named [name]. Like [ReflectedMethod.invoke]: pass the receiver as the
+     * first argument for an instance method, and no receiver for a static method.
+     * [superclass] defaults to [Reflekt.defaults].
+     */
+    fun invokeMethod(name: String, vararg args: Any?, superclass: Boolean? = null): Any? {
         return firstMethod {
             this.name = name
-            superclass(superclass)
-        }.invoke(instance, *args)
+            if (superclass != null) superclass(superclass)
+        }.invoke(*args)
     }
 
     // ==================== Fields ====================
@@ -99,18 +104,20 @@ class Reflect<T>(private val clazz: Class<T>) {
 
     fun lastField(): ReflectedField<T> = lastField { }
 
-    fun getField(name: String, superclass: Boolean = false): Any? {
+    /** Reads the static field named [name]. [superclass] defaults to [Reflekt.defaults]. */
+    fun getField(name: String, superclass: Boolean? = null): Any? {
         return firstField {
             this.name = name
-            superclass(superclass)
-        }.getStatic()
+            if (superclass != null) superclass(superclass)
+        }.get()
     }
 
-    fun setField(name: String, value: Any?, superclass: Boolean = false) {
+    /** Writes the static field named [name]. [superclass] defaults to [Reflekt.defaults]. */
+    fun setField(name: String, value: Any?, superclass: Boolean? = null) {
         firstField {
             this.name = name
-            superclass(superclass)
-        }.setStatic(value)
+            if (superclass != null) superclass(superclass)
+        }.set(value)
     }
 
     // ==================== Constructors ====================
@@ -167,10 +174,10 @@ class Reflect<T>(private val clazz: Class<T>) {
     }
 
     private fun actualResolveMethod(spec: MethodSpec): ReflectedMethod<T>? =
-        methodSource(spec.superclass).firstOrNull { spec.matches(it) }?.let { ReflectedMethod(it) }
+        methodSource(spec.superclass).firstOrNull { spec.matches(it) }?.let { ReflectedMethod<T>(it, spec.compiled) }
 
     private fun actualResolveMethods(spec: MethodSpec): List<ReflectedMethod<T>> =
-        methodSource(spec.superclass).filter { spec.matches(it) }.map { ReflectedMethod<T>(it) }.toList()
+        methodSource(spec.superclass).filter { spec.matches(it) }.map { ReflectedMethod<T>(it, spec.compiled) }.toList()
 
     private fun methodSource(superclass: Boolean): Sequence<Method> =
         if (superclass) superclassSequence(clazz) { it.declaredMethods }
@@ -185,7 +192,7 @@ class Reflect<T>(private val clazz: Class<T>) {
     }
 
     private fun actualResolveLastMethod(spec: MethodSpec): ReflectedMethod<T>? =
-        methodSource(spec.superclass).lastOrNull { spec.matches(it) }?.let { ReflectedMethod(it) }
+        methodSource(spec.superclass).lastOrNull { spec.matches(it) }?.let { ReflectedMethod<T>(it, spec.compiled) }
 
     // ==================== Field resolution ====================
 
@@ -206,10 +213,10 @@ class Reflect<T>(private val clazz: Class<T>) {
     }
 
     private fun actualResolveField(spec: FieldSpec): ReflectedField<T>? =
-        fieldSource(spec.superclass).firstOrNull { spec.matches(it) }?.let { ReflectedField(it) }
+        fieldSource(spec.superclass).firstOrNull { spec.matches(it) }?.let { ReflectedField<T>(it, spec.compiled) }
 
     private fun actualResolveFields(spec: FieldSpec): List<ReflectedField<T>> =
-        fieldSource(spec.superclass).filter { spec.matches(it) }.map { ReflectedField<T>(it) }.toList()
+        fieldSource(spec.superclass).filter { spec.matches(it) }.map { ReflectedField<T>(it, spec.compiled) }.toList()
 
     private fun fieldSource(superclass: Boolean): Sequence<Field> =
         if (superclass) superclassSequence(clazz) { it.declaredFields }
@@ -224,7 +231,7 @@ class Reflect<T>(private val clazz: Class<T>) {
     }
 
     private fun actualResolveLastField(spec: FieldSpec): ReflectedField<T>? =
-        fieldSource(spec.superclass).lastOrNull { spec.matches(it) }?.let { ReflectedField(it) }
+        fieldSource(spec.superclass).lastOrNull { spec.matches(it) }?.let { ReflectedField<T>(it, spec.compiled) }
 
     // ==================== Constructor resolution ====================
 
@@ -247,13 +254,13 @@ class Reflect<T>(private val clazz: Class<T>) {
     @Suppress("UNCHECKED_CAST")
     private fun actualResolveConstructor(spec: ConstructorSpec): ReflectedConstructor<T>? =
         constructorSource(spec.superclass).firstOrNull { spec.matches(it) }?.let {
-            ReflectedConstructor(it as Constructor<T>)
+            ReflectedConstructor(it as Constructor<T>, spec.compiled)
         }
 
     @Suppress("UNCHECKED_CAST")
     private fun actualResolveConstructors(spec: ConstructorSpec): List<ReflectedConstructor<T>> =
         constructorSource(spec.superclass).filter { spec.matches(it) }.map {
-            ReflectedConstructor(it as Constructor<T>)
+            ReflectedConstructor(it as Constructor<T>, spec.compiled)
         }.toList()
 
     private fun constructorSource(superclass: Boolean): Sequence<Constructor<*>> =
@@ -271,7 +278,7 @@ class Reflect<T>(private val clazz: Class<T>) {
     @Suppress("UNCHECKED_CAST")
     private fun actualResolveLastConstructor(spec: ConstructorSpec): ReflectedConstructor<T>? =
         constructorSource(spec.superclass).lastOrNull { spec.matches(it) }?.let {
-            ReflectedConstructor(it as Constructor<T>)
+            ReflectedConstructor(it as Constructor<T>, spec.compiled)
         }
 
     // ==================== Utility ====================
@@ -298,37 +305,38 @@ class InstanceReflect<T : Any>(private val instance: T) {
 
     fun firstMethod(config: MethodSpec.() -> Unit): InstanceReflectedMethod<T> {
         val rm = reflect.firstMethod(config)
-        return InstanceReflectedMethod(instance, rm.self)
+        return InstanceReflectedMethod(instance, rm.self, rm.access)
     }
 
     fun firstMethodOrNull(config: MethodSpec.() -> Unit): InstanceReflectedMethod<T>? {
         val rm = reflect.firstMethodOrNull(config) ?: return null
-        return InstanceReflectedMethod(instance, rm.self)
+        return InstanceReflectedMethod(instance, rm.self, rm.access)
     }
 
     fun firstMethod(): InstanceReflectedMethod<T> = firstMethod { }
 
     fun methods(config: MethodSpec.() -> Unit): List<InstanceReflectedMethod<T>> =
-        reflect.methods(config).map { InstanceReflectedMethod(instance, it.self) }
+        reflect.methods(config).map { InstanceReflectedMethod(instance, it.self, it.access) }
 
     fun methods(): List<InstanceReflectedMethod<T>> = methods { }
 
     fun lastMethod(config: MethodSpec.() -> Unit): InstanceReflectedMethod<T> {
         val rm = reflect.lastMethod(config)
-        return InstanceReflectedMethod(instance, rm.self)
+        return InstanceReflectedMethod(instance, rm.self, rm.access)
     }
 
     fun lastMethodOrNull(config: MethodSpec.() -> Unit): InstanceReflectedMethod<T>? {
         val rm = reflect.lastMethodOrNull(config) ?: return null
-        return InstanceReflectedMethod(instance, rm.self)
+        return InstanceReflectedMethod(instance, rm.self, rm.access)
     }
 
     fun lastMethod(): InstanceReflectedMethod<T> = lastMethod { }
 
-    fun invokeMethod(name: String, vararg args: Any?, superclass: Boolean = false): Any? {
+    /** Invokes the first method named [name] on the instance. [superclass] defaults to [Reflekt.defaults]. */
+    fun invokeMethod(name: String, vararg args: Any?, superclass: Boolean? = null): Any? {
         return firstMethod {
             this.name = name
-            superclass(superclass)
+            if (superclass != null) superclass(superclass)
         }.invoke(*args)
     }
 
@@ -336,44 +344,46 @@ class InstanceReflect<T : Any>(private val instance: T) {
 
     fun firstField(config: FieldSpec.() -> Unit): InstanceReflectedField<T> {
         val rf = reflect.firstField(config)
-        return InstanceReflectedField(instance, rf.self)
+        return InstanceReflectedField(instance, rf.self, rf.access)
     }
 
     fun firstFieldOrNull(config: FieldSpec.() -> Unit): InstanceReflectedField<T>? {
         val rf = reflect.firstFieldOrNull(config) ?: return null
-        return InstanceReflectedField(instance, rf.self)
+        return InstanceReflectedField(instance, rf.self, rf.access)
     }
 
     fun firstField(): InstanceReflectedField<T> = firstField { }
 
     fun fields(config: FieldSpec.() -> Unit): List<InstanceReflectedField<T>> =
-        reflect.fields(config).map { InstanceReflectedField(instance, it.self) }
+        reflect.fields(config).map { InstanceReflectedField(instance, it.self, it.access) }
 
     fun fields(): List<InstanceReflectedField<T>> = fields { }
 
     fun lastField(config: FieldSpec.() -> Unit): InstanceReflectedField<T> {
         val rf = reflect.lastField(config)
-        return InstanceReflectedField(instance, rf.self)
+        return InstanceReflectedField(instance, rf.self, rf.access)
     }
 
     fun lastFieldOrNull(config: FieldSpec.() -> Unit): InstanceReflectedField<T>? {
         val rf = reflect.lastFieldOrNull(config) ?: return null
-        return InstanceReflectedField(instance, rf.self)
+        return InstanceReflectedField(instance, rf.self, rf.access)
     }
 
     fun lastField(): InstanceReflectedField<T> = lastField { }
 
-    fun getField(name: String, superclass: Boolean = false): Any? {
+    /** Reads the field named [name] on the instance. [superclass] defaults to [Reflekt.defaults]. */
+    fun getField(name: String, superclass: Boolean? = null): Any? {
         return firstField {
             this.name = name
-            superclass(superclass)
+            if (superclass != null) superclass(superclass)
         }.get()
     }
 
-    fun setField(name: String, value: Any?, superclass: Boolean = true) {
+    /** Writes the field named [name] on the instance. [superclass] defaults to [Reflekt.defaults]. */
+    fun setField(name: String, value: Any?, superclass: Boolean? = null) {
         firstField {
             this.name = name
-            superclass(superclass)
+            if (superclass != null) superclass(superclass)
         }.set(value)
     }
 
@@ -381,29 +391,29 @@ class InstanceReflect<T : Any>(private val instance: T) {
 
     fun firstConstructor(config: ConstructorSpec.() -> Unit): InstanceReflectedConstructor<T> {
         val rc = reflect.firstConstructor(config)
-        return InstanceReflectedConstructor(instance, rc.self)
+        return InstanceReflectedConstructor(instance, rc.self, rc.access)
     }
 
     fun firstConstructorOrNull(config: ConstructorSpec.() -> Unit): InstanceReflectedConstructor<T>? {
         val rc = reflect.firstConstructorOrNull(config) ?: return null
-        return InstanceReflectedConstructor(instance, rc.self)
+        return InstanceReflectedConstructor(instance, rc.self, rc.access)
     }
 
     fun firstConstructor(): InstanceReflectedConstructor<T> = firstConstructor { }
 
     fun constructors(config: ConstructorSpec.() -> Unit): List<InstanceReflectedConstructor<T>> =
-        reflect.constructors(config).map { InstanceReflectedConstructor(instance, it.self) }
+        reflect.constructors(config).map { InstanceReflectedConstructor(instance, it.self, it.access) }
 
     fun constructors(): List<InstanceReflectedConstructor<T>> = constructors { }
 
     fun lastConstructor(config: ConstructorSpec.() -> Unit): InstanceReflectedConstructor<T> {
         val rc = reflect.lastConstructor(config)
-        return InstanceReflectedConstructor(instance, rc.self)
+        return InstanceReflectedConstructor(instance, rc.self, rc.access)
     }
 
     fun lastConstructorOrNull(config: ConstructorSpec.() -> Unit): InstanceReflectedConstructor<T>? {
         val rc = reflect.lastConstructorOrNull(config) ?: return null
-        return InstanceReflectedConstructor(instance, rc.self)
+        return InstanceReflectedConstructor(instance, rc.self, rc.access)
     }
 
     fun lastConstructor(): InstanceReflectedConstructor<T> = lastConstructor { }

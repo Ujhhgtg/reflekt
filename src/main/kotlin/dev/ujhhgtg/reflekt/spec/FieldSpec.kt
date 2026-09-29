@@ -10,7 +10,6 @@ class FieldSpec : Spec() {
     var name: String? = null
     var type: Any? = null
     var modifiers: Int? = null
-    var superclass: Boolean = false
 
     private var namePredicate: ((String) -> Boolean)? = null
     private var typePredicate: ((Class<*>) -> Boolean)? = null
@@ -47,14 +46,6 @@ class FieldSpec : Spec() {
         hasRuntimeCondition = true
     }
 
-    fun superclass() {
-        superclass = true
-    }
-
-    fun superclass(value: Boolean) {
-        superclass = value
-    }
-
     fun matches(field: Field): Boolean {
         if (name != null && field.name != name) return false
         if (namePredicate != null && !namePredicate!!(field.name)) return false
@@ -68,5 +59,5 @@ class FieldSpec : Spec() {
     }
 
     override fun staticCacheKeyParts(): List<Any?> =
-        listOf(name, type.typeInputToClass(), modifiers, superclass)
+        listOf(name, type.typeInputToClass(), modifiers, superclass, compiled)
 }

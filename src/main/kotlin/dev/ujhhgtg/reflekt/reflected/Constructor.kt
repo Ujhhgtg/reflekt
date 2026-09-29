@@ -2,10 +2,17 @@
 
 package dev.ujhhgtg.reflekt.reflected
 
+import dev.ujhhgtg.reflekt.Reflekt
 import java.lang.reflect.Constructor
 
-open class ReflectedConstructor<T>(open val self: Constructor<T>) {
-    fun newInstance(vararg args: Any?): T = self.newInstance(*args)
+open class ReflectedConstructor<T> internal constructor(
+    val self: Constructor<T>,
+    internal val access: ConstructorAccess<T>
+) {
+    constructor(self: Constructor<T>, compiled: Boolean = Reflekt.defaults.compiled) :
+            this(self, ConstructorAccess(self, compiled))
+
+    fun newInstance(vararg args: Any?): T = access.newInstance(args)
 
     val name: String get() = self.name
     val declaringClass: Class<*> get() = self.declaringClass
@@ -13,6 +20,9 @@ open class ReflectedConstructor<T>(open val self: Constructor<T>) {
     val modifiers: Int get() = self.modifiers
     val annotations: Array<Annotation> get() = self.annotations
     val declaredAnnotations: Array<Annotation> get() = self.declaredAnnotations
+
+    /** Whether construction goes through a cached MethodHandle instead of core reflection. */
+    val compiled: Boolean get() = access.compiled
 
     fun getAnnotation(annotationClass: Class<out Annotation>): Annotation? =
         self.getAnnotation(annotationClass)
@@ -23,9 +33,10 @@ open class ReflectedConstructor<T>(open val self: Constructor<T>) {
         other is ReflectedConstructor<*> && self == other.self
 }
 
-class InstanceReflectedConstructor<T : Any>(
+class InstanceReflectedConstructor<T : Any> internal constructor(
     private val instance: T,
-    override val self: Constructor<T>
-) : ReflectedConstructor<T>(self) {
+    self: Constructor<T>,
+    access: ConstructorAccess<T>
+) : ReflectedConstructor<T>(self, access) {
     val instanceClass: Class<*> get() = instance::class.java
 }
