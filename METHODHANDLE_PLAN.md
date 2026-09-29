@@ -40,12 +40,13 @@ Every call behaves like invoking the member directly / like a `MethodHandle` of 
 | `Reflect.invokeMethod(name, ...)` | `invokeMethod(name, instance, a)` | `invokeMethod(name, a)` |
 | `InstanceReflect.invokeMethod(name, ...)` | `invokeMethod(name, a)` | `invokeMethod(name, a)` |
 
+- Renamed: `InstanceReflectedField.erase()` -> `ofNone()` (matches `of(instance)`; no WeKit-Dev usages, already done in code).
 - Removed: `invokeStatic`, `getStatic`, `setStatic`. This also **supersedes the Phase 0 fix's signature**: `Reflect.invokeMethod(name, instance, vararg args, superclass)` becomes `invokeMethod(name, vararg args, superclass)`, with the receiver (if the resolved method is non-static) as the first vararg. The Phase 0 change (`invoke(instance, ...)` instead of `invokeStatic`) is an intermediate state.
 - `ReflectedMethod.invoke` becomes `invoke(vararg args: Any?)` plus fixed-arity overloads `invoke()`, `invoke(a)`, ..., `invoke(a, b, c)`. The argument count is *total*, i.e. `parameterCount + (if static 0 else 1)`; fixed-arity overloads therefore map 1:1 to handle types with no dropArguments/bindTo adapters. `T` on `ReflectedMethod<T>` no longer types the receiver (it can't be expressed for a static method); receiver is checked at call time.
 - Arity is validated up front on both backends with a clear `IllegalArgumentException` (e.g. `static method Foo.bar(String) takes 1 argument, got 2; do not pass a receiver`). This turns the most likely migration mistake, `invoke(null, x)` on a static method, into an immediate, self-explanatory failure instead of a confusing reflection error.
 - Handle backend: no `dropArguments` receiver shim any more. The handle is `unreflect(...)`'s natural type (receiver first for instance members), adapted with `asType(genericMethodType(total))`; spread variant `asSpreader(Object[], total)`. `InstanceReflected*` reuse the same shared handle and prepend the bound instance (for static members, don't). Field getter `(recv?) -> Object`, setter `(recv?, value) -> Object` (see finding 1).
 - Reflection backend: static -> `self.invoke(null, *args)`; instance -> `self.invoke(args[0], *args.copyOfRange(1, n))`.
-- `InstanceReflectedField` currently also exposes `get(instance)` / `set(instance, value)` overloads. **Decided (say if you disagree):** remove them; `erase()` / `of(instance)` already cover that, and they contradict "bound means no receiver argument".
+- `InstanceReflectedField` currently also exposes `get(instance)` / `set(instance, value)` overloads. **Decided (say if you disagree):** remove them; `ofNone()` / `of(instance)` already cover that, and they contradict "bound means no receiver argument".
 
 ## Phases
 
@@ -56,7 +57,7 @@ Every call behaves like invoking the member directly / like a `MethodHandle` of 
 - New `internal` files under `reflected/`: `MethodAccess`, `FieldAccess`, `ConstructorAccess`, each with a reflection implementation and a handle implementation, chosen per wrapper by the spec's `compiled` flag.
 - Add `Reflekt.defaults`, `Spec.compiled`, `Spec.superclass` default (see "Opt-in API").
 - `ReflectedMethod/Field/Constructor` and the `Instance*` variants hold an access object and delegate to it. `makeAccessible()` moves into access construction (once), including constructors.
-- `InstanceReflect` and `erase()`/`of()` pass the existing `ReflectedX` (and its access) instead of `.self`; delete the `(instance, Method)` constructors.
+- `InstanceReflect` and `ofNone()`/`of()` pass the existing `ReflectedX` (and its access) instead of `.self`; delete the `(instance, Method)` constructors.
 - Tests: all existing tests must pass unchanged.
 
 ### Phase 2 — handle implementations

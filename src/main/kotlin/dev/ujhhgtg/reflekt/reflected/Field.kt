@@ -70,7 +70,7 @@ class InstanceReflectedField<T : Any>(
         self.set(instance, value)
     }
 
-    fun erase(): ReflectedField<T> {
+    fun ofNone(): ReflectedField<T> {
         return ReflectedField(self)
     }
 
