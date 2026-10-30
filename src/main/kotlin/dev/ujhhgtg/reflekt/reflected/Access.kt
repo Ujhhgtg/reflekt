@@ -55,24 +55,24 @@ internal class Invoker(private val direct: MethodHandle, private val arity: Int)
     private var spreader: MethodHandle? = null
 
     fun invoke(args: Array<out Any?>): Any? = when (args.size) {
-        0 -> direct.invokeExact() as Any?
-        1 -> direct.invokeExact(args[0]) as Any?
-        2 -> direct.invokeExact(args[0], args[1]) as Any?
-        3 -> direct.invokeExact(args[0], args[1], args[2]) as Any?
-        4 -> direct.invokeExact(args[0], args[1], args[2], args[3]) as Any?
-        5 -> direct.invokeExact(args[0], args[1], args[2], args[3], args[4]) as Any?
+        0 -> direct.invokeExact()
+        1 -> direct.invokeExact(args[0])
+        2 -> direct.invokeExact(args[0], args[1])
+        3 -> direct.invokeExact(args[0], args[1], args[2])
+        4 -> direct.invokeExact(args[0], args[1], args[2], args[3])
+        5 -> direct.invokeExact(args[0], args[1], args[2], args[3], args[4])
         else -> {
             val s = spreader ?: direct.asSpreader(Array<Any?>::class.java, arity).also { spreader = it }
             @Suppress("UNCHECKED_CAST")
-            s.invokeExact(args as Array<Any?>) as Any?
+            (s.invokeExact(args as Array<Any?>))
         }
     }
 
-    fun invoke0(): Any? = direct.invokeExact() as Any?
-    fun invoke1(a: Any?): Any? = direct.invokeExact(a) as Any?
-    fun invoke2(a: Any?, b: Any?): Any? = direct.invokeExact(a, b) as Any?
-    fun invoke3(a: Any?, b: Any?, c: Any?): Any? = direct.invokeExact(a, b, c) as Any?
-    fun invoke4(a: Any?, b: Any?, c: Any?, d: Any?): Any? = direct.invokeExact(a, b, c, d) as Any?
+    fun invoke0(): Any? = direct.invokeExact()
+    fun invoke1(a: Any?): Any? = direct.invokeExact(a)
+    fun invoke2(a: Any?, b: Any?): Any? = direct.invokeExact(a, b)
+    fun invoke3(a: Any?, b: Any?, c: Any?): Any? = direct.invokeExact(a, b, c)
+    fun invoke4(a: Any?, b: Any?, c: Any?, d: Any?): Any? = direct.invokeExact(a, b, c, d)
 }
 
 internal class MethodAccess(val method: Method, val compiled: Boolean) {
@@ -229,14 +229,14 @@ internal class FieldAccess(val field: Field, val compiled: Boolean) {
 
     fun get0(): Any? {
         checkGet(0)
-        if (compiled) return getter().invokeExact() as Any?
+        if (compiled) return getter().invokeExact()
         ensureAccessible()
         return field.get(null)
     }
 
     fun get1(receiver: Any?): Any? {
         checkGet(1)
-        if (compiled) return getter().invokeExact(receiver) as Any?
+        if (compiled) return getter().invokeExact(receiver)
         ensureAccessible()
         return field.get(receiver)
     }
@@ -244,8 +244,8 @@ internal class FieldAccess(val field: Field, val compiled: Boolean) {
     fun set1(value: Any?) {
         checkSet(1)
         if (compiled) {
-            @Suppress("UNUSED_VARIABLE")
-            val ignored = setter().invokeExact(value) as Any?
+            @Suppress("UNUSED_VARIABLE", "unused")
+            val ignored = setter().invokeExact(value)
             return
         }
         ensureAccessible()
@@ -255,8 +255,8 @@ internal class FieldAccess(val field: Field, val compiled: Boolean) {
     fun set2(receiver: Any?, value: Any?) {
         checkSet(2)
         if (compiled) {
-            @Suppress("UNUSED_VARIABLE")
-            val ignored = setter().invokeExact(receiver, value) as Any?
+            @Suppress("UNUSED_VARIABLE", "unused")
+            val ignored = setter().invokeExact(receiver, value)
             return
         }
         ensureAccessible()
